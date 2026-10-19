@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro · codexpia</title>
+<style>
+  :root {
+    --bg: #050d24;
+    --card: #0a1a3f;
+    --cyan: #22d3ee;
+    --blue: #1d4ed8;
+    --text: #e6f0ff;
+    --muted: #7f95c4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 50% 15%, #0b2a6b 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  .app {
+    width: min(92vw, 420px);
+    padding: 32px 28px 28px;
+    background: var(--card);
+    border: 1px solid rgba(34, 211, 238, .35);
+    border-radius: 28px;
+    box-shadow: 0 0 60px rgba(34, 211, 238, .15);
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 1rem;
+    letter-spacing: .25em;
+    text-transform: uppercase;
+    color: var(--cyan);
+  }
+
+  /* Mod seçici */
+  .modes { display: flex; gap: 8px; justify-content: center; margin: 20px 0 8px; }
+  .mode {
+    padding: 8px 16px;
+    border: 1px solid rgba(255, 255, 255, .12);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: .8rem;
+    cursor: pointer;
+    transition: .2s;
+  }
+  .mode.active { background: var(--cyan); border-color: var(--cyan); color: #041028; font-weight: 600; }
+
+  /* İlerleme halkası */
+  .ring { position: relative; width: 260px; height: 260px; margin: 16px auto; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 12; }
+  .track { stroke: rgba(255, 255, 255, .08); }
+  .bar {
+    stroke: var(--cyan);
+    stroke-linecap: round;
+    stroke-dasharray: 691.15;       /* 2 * π * 110 */
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 1s linear;
+    filter: drop-shadow(0 0 8px rgba(34, 211, 238, .7));
+  }
+  #time {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    font-size: 3.4rem; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Butonlar */
+  .buttons { display: flex; gap: 12px; justify-content: center; margin-top: 8px; }
+  .btn {
+    padding: 14px 28px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--blue);
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(29, 78, 216, .5); }
+  .btn.ghost { background: transparent; border: 1px solid rgba(255, 255, 255, .18); }
+
+  .sessions { margin-top: 22px; color: var(--muted); font-size: .85rem; }
+  .sessions b { color: var(--cyan); }
+</style>
+</head>
+<body>
+  <main class="app">
+    <h1>Pomodoro</h1>
+
+    <div class="modes">
+      <button class="mode active" data-mod="odak">Odak</button>
+      <button class="mode" data-mod="mola">Kısa Mola</button>
+      <button class="mode" data-mod="uzun">Uzun Mola</button>
+    </div>
+
+    <div class="ring">
+      <svg width="260" height="260" viewBox="0 0 260 260">
+        <circle class="track" cx="130" cy="130" r="110"/>
+        <circle class="bar" id="bar" cx="130" cy="130" r="110"/>
+      </svg>
+      <div id="time">25:00</div>
+    </div>
+
+    <div class="buttons">
+      <button class="btn" id="start">Başlat</button>
+      <button class="btn ghost" id="reset">Sıfırla</button>
+    </div>
+
+    <p class="sessions">Tamamlanan odak seansı: <b id="count">0</b></p>
+  </main>
+
+<script>
+  const SURELER = { odak: 25 * 60, mola: 5 * 60, uzun: 15 * 60 };
+  const CEVRE = 691.15;
+
+  let mod = "odak";
+  let kalan = SURELER[mod];
+  let sayac = null;
+  let bitis = 0;
+  let oturum = 0;
+
+  const $ = (id) => document.getElementById(id);
+
+  function goster() {
+    const d = String(Math.floor(kalan / 60)).padStart(2, "0");
+    const s = String(kalan % 60).padStart(2, "0");
+    $("time").textContent = `${d}:${s}`;
+    $("bar").style.strokeDashoffset = CEVRE * (1 - kalan / SURELER[mod]);
+    document.title = `${d}:${s} · Pomodoro`;
+  }
+
+  function tik() {
+    // Tarayıcı sekmesi arka plandayken bile doğru kalsın diye gerçek saate bakıyoruz
+    kalan = Math.max(0, Math.round((bitis - Date.now()) / 1000));
+    goster();
+    if (kalan === 0) bitir();
+  }
+
+  function baslat() {
+    bitis = Date.now() + kalan * 1000;
+    sayac = setInterval(tik, 1000);   // her 1000 ms'de bir çalışır
+    $("start").textContent = "Duraklat";
+  }
+
+  function duraklat() {
+    clearInterval(sayac);
+    sayac = null;
+    $("start").textContent = "Devam Et";
+  }
+
+  function sifirla() {
+    clearInterval(sayac);
+    sayac = null;
+    kalan = SURELER[mod];
+    $("start").textContent = "Başlat";
+    goster();
+  }
+
+  function modSec(yeni) {
+    mod = yeni;
+    document.querySelectorAll(".mode").forEach((b) =>
+      b.classList.toggle("active", b.dataset.mod === yeni)
+    );
+    sifirla();
+  }
+
+  function bip() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      osc.frequency.value = 880;
+      osc.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.4);
+    } catch (e) { /* ses desteklenmiyorsa sessizce geç */ }
+  }
+
+  function bitir() {
+    clearInterval(sayac);
+    sayac = null;
+    bip();
+    if (mod === "odak") {
+      oturum++;
+      $("count").textContent = oturum;
+      modSec(oturum % 4 === 0 ? "uzun" : "mola");
+    } else {
+      modSec("odak");
+    }
+  }
+
+  $("start").onclick = () => (sayac ? duraklat() : baslat());
+  $("reset").onclick = sifirla;
+  document.querySelectorAll(".mode").forEach((b) =>
+    (b.onclick = () => modSec(b.dataset.mod))
+  );
+
+  goster();
+</script>
+</body>
+</html>
